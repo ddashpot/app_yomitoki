@@ -11,6 +11,8 @@ const DEFAULT_AUDIENCES = [
 ];
 const DEFAULT_MODEL = "claude-sonnet-5";
 const DEFAULT_ENDPOINT = "https://api.anthropic.com/v1/messages";
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_FORMAT = "anthropic";
 const DEFAULT_TTS_VOICE = "ja";
 
 /* ---------- 状態 ---------- */
@@ -23,7 +25,7 @@ const state = {
 };
 
 /* ---------- localStorage ---------- */
-const LS = { aud: "yt_audiences_v1", key: "yt_token", model: "yt_model", ep: "yt_endpoint", cid: "yt_gclient", tts: "yt_tts_voice" };
+const LS = { aud: "yt_audiences_v1", key: "yt_token", model: "yt_model", ep: "yt_endpoint", cid: "yt_gclient", tts: "yt_tts_voice", fmt: "yt_api_format" };
 function lsGet(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 function loadAudiences() {
@@ -36,6 +38,7 @@ const getModel = () => lsGet(LS.model, DEFAULT_MODEL);
 const getEndpoint = () => lsGet(LS.ep, DEFAULT_ENDPOINT);
 const getClientId = () => lsGet(LS.cid, "");
 const getTtsVoice = () => lsGet(LS.tts, DEFAULT_TTS_VOICE);
+const getFormat = () => lsGet(LS.fmt, DEFAULT_FORMAT);
 
 /* ---------- ショートカット ---------- */
 const $ = (id) => document.getElementById(id);
@@ -116,41 +119,55 @@ async function explain() {
 
   try {
     const endpoint = getEndpoint();
+    const fmt = getFormat();
     let host = "";
     try { host = new URL(endpoint).host; } catch (e) { throw new Error("エンドポイントのURLが正しくありません。"); }
-    const isAnthropic = /(^|\.)api\.anthropic\.com$/.test(host);
 
-    const headers = { "content-type": "application/json" };
-    if (isAnthropic) {
-      headers["x-api-key"] = token;
-      headers["anthropic-version"] = "2023-06-01";
-      headers["anthropic-dangerous-direct-browser-access"] = "true";
+    let headers, body;
+    if (fmt === "openai") {
+      // OpenAI 互換（Chat Completions）: 画像は data URL、応答は choices[].message.content
+      headers = { "content-type": "application/json", "authorization": "Bearer " + token };
+      body = {
+        model: getModel(), max_tokens: 1500,
+        messages: [{ role: "user", content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: state.image } }
+        ] }]
+      };
     } else {
-      headers["authorization"] = "Bearer " + token;
-      headers["x-api-key"] = token;
-      headers["anthropic-version"] = "2023-06-01";
-    }
-
-    const res = await fetch(endpoint, {
-      method: "POST", headers: headers,
-      body: JSON.stringify({
+      // Anthropic（Messages）
+      const isAnthropic = /(^|\.)api\.anthropic\.com$/.test(host);
+      headers = { "content-type": "application/json", "x-api-key": token, "anthropic-version": "2023-06-01" };
+      if (isAnthropic) headers["anthropic-dangerous-direct-browser-access"] = "true";
+      body = {
         model: getModel(), max_tokens: 1500,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: state.imageMime, data: base64 } },
           { type: "text", text: prompt }
         ] }]
-      })
-    });
+      };
+    }
+
+    const res = await fetch(endpoint, { method: "POST", headers: headers, body: JSON.stringify(body) });
     const data = await res.json();
 
-    if (data && data.type === "error") {
-      if (res.status === 401) throw new Error("トークンが正しくないようです。設定を確認してください。");
-      throw new Error((data.error && data.error.message) || "APIからエラーが返りました。");
+    if (!res.ok || (data && data.error)) {
+      if (res.status === 401 || res.status === 403) throw new Error("トークンが正しくないか、権限がありません。設定を確認してください。");
+      const em = data && data.error ? (data.error.message || data.error) : ("HTTP " + res.status);
+      throw new Error(typeof em === "string" ? em : JSON.stringify(em));
     }
-    if (!data || !Array.isArray(data.content)) throw new Error("予期しない応答が返りました。");
 
-    const text = data.content.filter((i) => i.type === "text").map((i) => i.text).join("\n");
-    const clean = text.replace(/```json|```/g, "").trim();
+    let outText = "";
+    if (fmt === "openai") {
+      const msg = (((data.choices || [])[0]) || {}).message || {};
+      outText = msg.content || "";
+      if (Array.isArray(outText)) outText = outText.map((p) => (p && p.text) ? p.text : "").join("\n");
+    } else {
+      if (!Array.isArray(data.content)) throw new Error("予期しない応答が返りました。");
+      outText = data.content.filter((i) => i.type === "text").map((i) => i.text).join("\n");
+    }
+
+    const clean = String(outText).replace(/```json|```/g, "").trim();
     let parsed = null;
     try { parsed = JSON.parse(clean); }
     catch (e) { const m = clean.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]); } catch (e2) {} } }
@@ -387,6 +404,7 @@ function showSettingsMsg(msg) {
 function openSettings(msg) {
   showSettingsMsg(msg || "");
   $("gClientId").value = getClientId();
+  $("apiFormat").value = getFormat();
   $("endpoint").value = getEndpoint();
   $("apiKey").value = getToken();
   $("modelName").value = getModel();
@@ -396,13 +414,14 @@ function openSettings(msg) {
 }
 function closeSettings() { $("settingsOv").classList.add("yt-hidden"); }
 function saveSettings() {
+  lsSet(LS.fmt, $("apiFormat").value || DEFAULT_FORMAT);
   lsSet(LS.ep, $("endpoint").value.trim() || DEFAULT_ENDPOINT);
   lsSet(LS.key, $("apiKey").value.trim());
   lsSet(LS.model, $("modelName").value.trim() || DEFAULT_MODEL);
   lsSet(LS.cid, $("gClientId").value.trim());
   lsSet(LS.tts, $("ttsVoice").value.trim() || DEFAULT_TTS_VOICE);
   if (GDrive.isConnected()) {
-    GDrive.saveConfig({ endpoint: getEndpoint(), token: getToken(), model: getModel(), ttsVoice: getTtsVoice() })
+    GDrive.saveConfig({ format: getFormat(), endpoint: getEndpoint(), token: getToken(), model: getModel(), ttsVoice: getTtsVoice() })
       .then(() => showSettingsMsg("保存し、Google Drive に同期しました ✓"))
       .catch(() => showSettingsMsg("端末に保存しました（Drive同期は失敗）。"));
     setTimeout(closeSettings, 700);
@@ -425,6 +444,7 @@ function updateDriveUI(connected) {
 }
 function applyConfig(cfg) {
   if (!cfg) return;
+  if (cfg.format) lsSet(LS.fmt, cfg.format);
   if (cfg.endpoint) lsSet(LS.ep, cfg.endpoint);
   if (cfg.token) lsSet(LS.key, cfg.token);
   if (cfg.model) lsSet(LS.model, cfg.model);
@@ -441,11 +461,12 @@ async function connectGoogle() {
     const cfg = await GDrive.loadConfig();
     if (cfg) {
       applyConfig(cfg);
+      $("apiFormat").value = getFormat();
       $("endpoint").value = getEndpoint(); $("apiKey").value = getToken();
       $("modelName").value = getModel(); $("ttsVoice").value = getTtsVoice();
       showSettingsMsg("接続しました。Drive の設定を読み込みました ✓");
     } else {
-      await GDrive.saveConfig({ endpoint: getEndpoint(), token: getToken(), model: getModel(), ttsVoice: getTtsVoice() });
+      await GDrive.saveConfig({ format: getFormat(), endpoint: getEndpoint(), token: getToken(), model: getModel(), ttsVoice: getTtsVoice() });
       showSettingsMsg("接続しました。現在の設定を Drive に保存しました ✓");
     }
   } catch (e) {
@@ -474,6 +495,16 @@ function init() {
   $("btnSaveSettings").addEventListener("click", saveSettings);
   $("btnGConnect").addEventListener("click", connectGoogle);
   $("btnGDisconnect").addEventListener("click", disconnectGoogle);
+
+  $("apiFormat").addEventListener("change", (e) => {
+    const cur = $("endpoint").value.trim();
+    if (cur === "" || cur === DEFAULT_ENDPOINT || cur === OPENAI_ENDPOINT) {
+      $("endpoint").value = (e.target.value === "openai") ? OPENAI_ENDPOINT : DEFAULT_ENDPOINT;
+    }
+    if (e.target.value === "openai" && ($("modelName").value.trim() === "" || $("modelName").value.trim() === DEFAULT_MODEL)) {
+      $("modelName").value = "gpt-4o";
+    }
+  });
 
   document.querySelectorAll("[data-close]").forEach((b) => {
     b.addEventListener("click", () => { b.getAttribute("data-close") === "manage" ? closeManage() : closeSettings(); });
