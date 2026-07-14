@@ -95,6 +95,13 @@
 
       <h3 class="yt-sec-title">API設定</h3>
       <div class="yt-field">
+        <label for="apiFormat">API形式</label>
+        <select id="apiFormat" class="yt-input">
+          <option value="anthropic">Anthropic（Claude）</option>
+          <option value="openai">OpenAI 互換（Chat Completions）</option>
+        </select>
+      </div>
+      <div class="yt-field">
         <label for="endpoint">エンドポイント</label>
         <input id="endpoint" class="yt-input" placeholder="https://api.anthropic.com/v1/messages" />
       </div>
