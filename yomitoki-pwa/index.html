@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>よみとき — 文章カメラ</title>
+  <meta name="description" content="文章を撮って、対象者に合わせて原文に忠実に説明するアプリ" />
+
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#1F5E5B" />
+  <link rel="icon" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="よみとき" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="yt-wrap">
+    <header class="yt-head">
+      <button id="btnSettings" class="yt-gear" aria-label="設定">⚙</button>
+      <p class="yt-eyebrow">CAMERA READER · PWA</p>
+      <h1 class="yt-title">よみ<span class="mk">とき</span></h1>
+      <p class="yt-sub">文章を撮ると、原文に忠実なまま、相手に伝わる言葉で説明します。</p>
+    </header>
+
+    <div class="yt-stage" id="stage"></div>
+    <canvas id="canvas" class="yt-hidden"></canvas>
+    <div class="yt-row" id="controls"></div>
+    <input id="fileInput" type="file" accept="image/*" class="yt-hidden" />
+
+    <div class="yt-sec-label">
+      <h2>だれに向けて説明する？</h2>
+      <button class="yt-manage" id="btnManage">対象者を管理</button>
+    </div>
+    <div class="yt-chips" id="chips"></div>
+
+    <button class="yt-cta" id="btnExplain" disabled>この文章を説明する</button>
+
+    <div id="statusArea"></div>
+  </div>
+
+  <!-- 対象者の管理 -->
+  <div class="yt-ov yt-hidden" id="manageOv" data-ov="manage">
+    <div class="yt-modal">
+      <div class="yt-modal-head">
+        <h2>対象者を管理</h2>
+        <button class="yt-x" data-close="manage" aria-label="閉じる">×</button>
+      </div>
+      <div id="audList"></div>
+      <div class="yt-form">
+        <h3 id="formTitle">新しい対象者を追加</h3>
+        <div class="yt-field">
+          <label for="fName">名前</label>
+          <input id="fName" class="yt-input" placeholder="例：介護中の家族 / 新入社員" />
+        </div>
+        <div class="yt-field">
+          <label for="fDesc">特徴（説明の調整に使います）</label>
+          <textarea id="fDesc" class="yt-area" placeholder="例：制度に不慣れな家族。手続きの流れと期限を、専門用語を避けて具体的に。"></textarea>
+        </div>
+        <div class="yt-form-actions">
+          <button class="yt-save" id="btnSaveAud">追加する</button>
+          <button class="yt-cancel yt-hidden" id="btnNewAud">新規に切替</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定 -->
+  <div class="yt-ov yt-hidden" id="settingsOv" data-ov="settings">
+    <div class="yt-modal">
+      <div class="yt-modal-head">
+        <h2>設定</h2>
+        <button class="yt-x" data-close="settings" aria-label="閉じる">×</button>
+      </div>
+      <div id="settingsMsg" class="yt-caveat yt-hidden"></div>
+      <div class="yt-field">
+        <label for="apiKey">Anthropic APIキー</label>
+        <input id="apiKey" class="yt-input" type="password" placeholder="sk-ant-..." autocomplete="off" />
+      </div>
+      <p class="yt-mini">キーはこの端末のブラウザ内だけに保存され、送信先は Anthropic の API のみです。</p>
+      <div class="yt-field">
+        <label for="modelName">モデル</label>
+        <input id="modelName" class="yt-input" placeholder="claude-sonnet-5" />
+      </div>
+      <div class="yt-form-actions">
+        <button class="yt-save" id="btnSaveSettings">保存する</button>
+      </div>
+      <p class="yt-mini" style="margin-top:14px">APIキーは <b>console.anthropic.com</b> で取得できます。利用には Anthropic の API 利用料がかかります。</p>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
