@@ -1,45 +1,66 @@
 # よみとき — 文章カメラ（PWA）
 
-文章をカメラで撮影し、原文に忠実なまま、設定した対象者に合わせて説明するPWAです。HTML + JavaScript のみで動きます。
+文章をカメラで撮影し、原文に忠実なまま対象者に合わせて説明し、**オープンソース音声**で読み上げる PWA です。
+設定（エンドポイント・トークン）と**読み解き結果**は **Google Drive** に保存できます。HTML + JavaScript のみで動きます。
 
-## ファイル構成
+## 読み上げについて（重要）
 
-すべて **同じフォルダに置いてください**（相対パスで参照しています）。
+- ブラウザ内蔵の音声機能（Web Speech API）は**使いません**。
+- オープンソースの **eSpeak NG** を WebAssembly 化したもの（`espeak-ng.js` / `espeak-ng.wasm`）を**同梱**し、
+  テキストから音声(WAV)をアプリ内で生成して再生します。**オフラインでも読み上げ可能**です。
+- ライセンスは **GPLv3**（同梱の `espeak-ng.LICENSE.txt`、原典 https://github.com/espeak-ng/espeak-ng ）。
+- 読み上げ音声は eSpeak の言語コードで設定できます（既定 `ja`）。速度は再生時に選べます。
+- eSpeak NG の音声は合成的（ロボット的）です。自然な音声が必要な場合は、別の OSS 音声モデルへ差し替え可能な構成にしています（`tts.js`）。
 
-- `index.html` — 画面
-- `styles.css` — スタイル
-- `app.js` — ロジック
-- `manifest.json` — PWA設定
-- `sw.js` — サービスワーカー（オフライン起動用）
+## ファイル構成（すべて同じフォルダに置く）
+
+- `index.html` / `styles.css` / `app.js` — 画面・ロジック
+- `tts.js` — 読み上げ（eSpeak NG ラッパー）
+- `espeak-ng.js` / `espeak-ng.wasm` — 読み上げエンジン本体（約18MB）
+- `espeak-ng.LICENSE.txt` — eSpeak NG のライセンス（GPLv3）
+- `gdrive.js` — Google Drive 連携
+- `manifest.json` / `sw.js` — PWA 設定・オフライン起動
 - `icon-192.png` / `icon-512.png` / `icon-maskable-512.png` — アイコン
 
-## 使うための準備
+## 1. 配信（HTTPS 必須）
 
-1. **HTTPSで配信する**（PWA・カメラ・サービスワーカーはhttpsが必須。開発時は `localhost` でも可）。
-   - 手軽な例：GitHub Pages、Cloudflare Pages、Netlify、Vercel などに上記ファイルをまとめて置く。
-   - ローカル確認：フォルダ内で `python3 -m http.server 8000` を実行し、`http://localhost:8000` を開く。
-2. アプリ右上の **⚙（設定）** を開き、**Anthropic APIキー** を入力して保存する。
-   - キーは `console.anthropic.com` で取得できます。
-   - キーは **この端末のブラウザ内（localStorage）だけ** に保存され、送信先はAnthropicのAPIのみです。
-   - 利用にはAnthropicのAPI利用料がかかります。
-   - モデルは既定で `claude-sonnet-5`。必要なら設定で変更できます。
+PWA・カメラ・サービスワーカー・Google 連携・WASM 読み込みは https が必要です（開発時は `localhost` も可）。
+GitHub Pages / Cloudflare Pages / Netlify / Vercel などにフォルダごと置くのが簡単です。
+ローカル確認: フォルダ内で `python3 -m http.server 8000` → `http://localhost:8000`。
 
-## 使い方
+## 2. API 設定（右上 ⚙）
 
-1. 「カメラ」で撮影、または「画像を選ぶ」でアップロード
-2. 「だれに向けて説明する？」で対象者を選ぶ
-3. 「この文章を説明する」を押すと、**読み取った原文** と **対象者向けの説明** が表示されます
+- **エンドポイント**: 既定 `https://api.anthropic.com/v1/messages`。プロキシ等に変更可。
+  - `api.anthropic.com` の場合は `x-api-key` とブラウザ直アクセス用ヘッダを付与。
+  - それ以外は `Authorization: Bearer <トークン>` を付与（Anthropic 互換のリクエスト形式）。
+- **トークン**: API キー。`console.anthropic.com` で取得。
+- **モデル**: 既定 `claude-sonnet-5`。
+- **読み上げ音声**: eSpeak 言語コード（既定 `ja`）。
 
-## 対象者の設定
+## 3. Google Drive 連携（任意・設定と結果を保存）
 
-「対象者を管理」から、名前＋特徴を自由に追加・編集・削除できます。特徴に書いた内容（前提知識・配慮点など）に合わせて、説明の長さ・言葉のやさしさ・具体例の量が自動調整されます。登録内容は端末に保存され、次回も使えます。
+1. **Google Cloud Console** でプロジェクト作成 → **Google Drive API** を有効化。
+2. **OAuth 同意画面** を設定。スコープ: `.../auth/drive.file`、`.../auth/drive.appdata`。
+3. **OAuth クライアントID（ウェブアプリ）** を作成し、**承認済みの JavaScript 生成元** にアプリの URL を追加
+   （例 `https://yourname.github.io`、ローカルは `http://localhost:8000`）。
+4. **クライアントID**（`xxxx.apps.googleusercontent.com`）を ⚙ に入力 →「Googleに接続」。
+
+保存先:
+- 設定 … Drive の非表示アプリ領域に `yomitoki-config.json`
+- 読み解き結果 … Drive 内フォルダ **「よみとき」** に `よみとき_日時_対象者.txt`（結果の下に「開く」リンク）
+
+## 4. 使い方
+
+1. 「カメラ」で撮影、または「画像を選ぶ」
+2. 対象者を選ぶ（初期6種。「対象者を管理」で追加・編集・削除。特徴に応じて説明を自動調整）
+3. 「この文章を説明する」→ 原文と説明を表示（接続時は Drive に自動保存）
+4. 説明の下の「▶ 読み上げ」で音声再生（初回はエンジン読み込みに少し時間がかかります）
 
 ## 忠実性について
 
-- 原文をそのまま文字起こしして先に表示します。
-- 説明は原文の内容だけに基づき、原文にない補足や判読できない箇所は「補足・注意」欄に分離します。
+原文をそのまま文字起こしして先に表示し、説明は原文の内容だけに基づかせます。原文にない補足や判読不能箇所は「補足・注意」欄に分離します。
 
 ## 注意
 
-- ブラウザから直接APIを呼ぶため、`anthropic-dangerous-direct-browser-access` を使っています。APIキーを他人と共有する端末には保存しないでください。
-- カメラの背面/前面はブラウザ・端末の対応状況により変わることがあります。
+- ブラウザから直接 API を呼ぶため、Anthropic では `anthropic-dangerous-direct-browser-access` を使用。共有端末にトークンを保存しないでください。
+- 初回の読み上げ時に約18MB の WASM を読み込みます（以降はキャッシュされ高速・オフライン可）。
