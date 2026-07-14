@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>よみとき — 文章カメラ</title>
-  <meta name="description" content="文章を撮って、対象者に合わせて原文に忠実に説明するアプリ" />
+  <meta name="description" content="文章を撮って、対象者に合わせて原文に忠実に説明し、オープンソース音声で読み上げるアプリ" />
 
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#1F5E5B" />
@@ -18,6 +18,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="yt-wrap">
@@ -25,7 +27,7 @@
       <button id="btnSettings" class="yt-gear" aria-label="設定">⚙</button>
       <p class="yt-eyebrow">CAMERA READER · PWA</p>
       <h1 class="yt-title">よみ<span class="mk">とき</span></h1>
-      <p class="yt-sub">文章を撮ると、原文に忠実なまま、相手に伝わる言葉で説明します。</p>
+      <p class="yt-sub">文章を撮ると、原文に忠実なまま、相手に伝わる言葉で説明し、オープンソース音声で読み上げます。</p>
     </header>
 
     <div class="yt-stage" id="stage"></div>
@@ -78,22 +80,47 @@
         <button class="yt-x" data-close="settings" aria-label="閉じる">×</button>
       </div>
       <div id="settingsMsg" class="yt-caveat yt-hidden"></div>
+
+      <h3 class="yt-sec-title">Google Drive 連携</h3>
+      <p class="yt-mini">設定（エンドポイント・トークン）と読み解き結果を、あなたの Google Drive に保存します。</p>
       <div class="yt-field">
-        <label for="apiKey">Anthropic APIキー</label>
+        <label for="gClientId">Google クライアントID</label>
+        <input id="gClientId" class="yt-input" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" />
+      </div>
+      <div class="yt-form-actions" style="margin-bottom:8px">
+        <button class="yt-save" id="btnGConnect">Googleに接続</button>
+        <button class="yt-cancel yt-hidden" id="btnGDisconnect">接続を解除</button>
+      </div>
+      <p class="yt-mini" id="gState">状態: 未接続</p>
+
+      <h3 class="yt-sec-title">API設定</h3>
+      <div class="yt-field">
+        <label for="endpoint">エンドポイント</label>
+        <input id="endpoint" class="yt-input" placeholder="https://api.anthropic.com/v1/messages" />
+      </div>
+      <div class="yt-field">
+        <label for="apiKey">トークン</label>
         <input id="apiKey" class="yt-input" type="password" placeholder="sk-ant-..." autocomplete="off" />
       </div>
-      <p class="yt-mini">キーはこの端末のブラウザ内だけに保存され、送信先は Anthropic の API のみです。</p>
       <div class="yt-field">
         <label for="modelName">モデル</label>
         <input id="modelName" class="yt-input" placeholder="claude-sonnet-5" />
       </div>
-      <div class="yt-form-actions">
-        <button class="yt-save" id="btnSaveSettings">保存する</button>
+
+      <h3 class="yt-sec-title">読み上げ（eSpeak NG・オープンソース）</h3>
+      <p class="yt-mini">ブラウザの音声機能は使わず、同梱の eSpeak NG（WebAssembly）で読み上げます。オフラインでも動作します。</p>
+      <div class="yt-field">
+        <label for="ttsVoice">読み上げ音声（eSpeak 言語コード）</label>
+        <input id="ttsVoice" class="yt-input" placeholder="ja" />
       </div>
-      <p class="yt-mini" style="margin-top:14px">APIキーは <b>console.anthropic.com</b> で取得できます。利用には Anthropic の API 利用料がかかります。</p>
+
+      <div class="yt-form-actions"><button class="yt-save" id="btnSaveSettings">保存する</button></div>
+      <p class="yt-mini" style="margin-top:14px">トークンはこの端末のブラウザに保存され、Google 接続中は Drive にも同期されます。APIキーは <b>console.anthropic.com</b>、GoogleクライアントIDは <b>Google Cloud Console</b> で取得します。</p>
     </div>
   </div>
 
+  <script src="./tts.js"></script>
+  <script src="./gdrive.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
