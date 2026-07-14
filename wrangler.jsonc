@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yomitoki-cors-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-14",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    // 中継先のゲートウェイ。必要に応じて書き換えてください。
+    "UPSTREAM": "https://auth-gtw.ddashpot.com"
+  }
+}
